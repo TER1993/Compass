@@ -17,4 +17,7 @@
     <string name="allow_location_service">開啟位置服務</string>  
     <string name="allow_location_service_describe">打開位置服務可提高定位資訊的準確性</string>
     <string name="calibrate_compass">指南針可能受到干擾。請以8字形晃動手機以重新校準</string>
+    <string name="character_degree">°</string>
+    <string name="character_fen">′</string>
+    <string name="character_miao">″</string>
 </resources>

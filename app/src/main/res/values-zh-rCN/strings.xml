@@ -16,5 +16,8 @@
     <string name="direct_south_west">西南</string>
     <string name="allow_location_service">开启位置服务</string>   
     <string name="allow_location_service_describe">打开位置服务可提高定位信息的准确性</string>
-    <string name="calibrate_compass">指南针可能受到干扰。请以8字形晃动手机以重新校准</string> 
+    <string name="calibrate_compass">指南针可能受到干扰。请以8字形晃动手机以重新校准</string>
+    <string name="character_degree">°</string>
+    <string name="character_fen">′</string>
+    <string name="character_miao">″</string>
 </resources>

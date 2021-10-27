@@ -2,6 +2,7 @@
 <resources>
 
     <string name="app_name">compass</string>
+    <string name="location_getting">Getting data</string>
     <string name="east_longitude">East longitude</string>
     <string name="west_longitude">West longitude</string>
     <string name="south_latitude">South latitude</string>    
