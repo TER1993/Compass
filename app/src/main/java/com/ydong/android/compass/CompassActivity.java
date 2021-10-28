@@ -23,6 +23,8 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.support.v4.app.ActivityCompat;
@@ -74,6 +76,46 @@ public class CompassActivity extends Activity implements SensorEventListener {
     private int zNegativePassTimes = 0;
     final static String TAG = "compass";
     private long first_time_stamp = 0;
+
+
+    //记录rotationMatrix矩阵值
+
+    private final float[] r = new float[9];
+
+    private float[] gravity = null;
+
+    private float[] geomagnetic = null;
+
+    private final float[] I = new float[9];
+
+    @SuppressLint("HandlerLeak")
+    private final Handler handler = new Handler() {
+
+        @SuppressLint("SetTextI18n")
+        @Override
+        public void handleMessage(Message msg) {
+            if (gravity != null && geomagnetic != null) {
+                if (SensorManager.getRotationMatrix(r, I, gravity, geomagnetic)) {
+                    float gri = gravity[0] * r[6] + gravity[1] * r[7] + gravity[2] * r[8];
+
+                    float h = (I[3] * r[0] + I[4] * r[3] + I[5] * r[6]) * geomagnetic[0] +
+
+                            (I[3] * r[1] + I[4] * r[4] + I[5] * r[7]) * geomagnetic[1] +
+
+                            (I[3] * r[2] + I[4] * r[5] + I[5] * r[8]) * geomagnetic[2];
+
+                    TextView textView = (TextView) findViewById(R.id.textview);
+
+                    textView.setText("重力加速度" + gri + "\n" + "磁场强度" + h + "\n");
+
+                }
+
+            }
+
+        }
+
+    };
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -238,7 +280,7 @@ public class CompassActivity extends Activity implements SensorEventListener {
     }
 
     private void calibrationUIchange(boolean calibrationNeed) {
-        // TODO Auto-generated method stub
+
         if (calibrationNeed) {
             img_compass_bg.getBackground().setAlpha(160);
             img_compass_dial.setImageResource(R.drawable.img_compass_dial_cali);
@@ -288,13 +330,19 @@ public class CompassActivity extends Activity implements SensorEventListener {
         mSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         if (gSensor != null) {
             sensorManager.registerListener(this, gSensor, SensorManager.SENSOR_DELAY_GAME);
+
+            sensorManager.registerListener(this, gSensor, SensorManager.SENSOR_DELAY_UI);
+
         }
         if (oSensor != null) {
             sensorManager.registerListener(this, oSensor, SensorManager.SENSOR_DELAY_GAME);
         }
         if (mSensor != null) {
             sensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_GAME);
+
+            sensorManager.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_UI);
         }
+
 
         registerLocationService();
     }
@@ -317,20 +365,14 @@ public class CompassActivity extends Activity implements SensorEventListener {
             if (mLocationProvider != null) {
                 // 直接获取最后一次得到的位置信息
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
+
                     return;
                 }
                 updateLocation(mLocationManager
                         .getLastKnownLocation(mLocationProvider));
                 // 8秒或者距离变化800米时更新一次地理位置
                 mLocationManager.requestLocationUpdates(mLocationProvider,
-                        1000, 100, mLocationListener);
+                        8000, 800, mLocationListener);
 //				Log.e(TAG, "mLocationManager.requestLocationUpdates");				
             } else {
 //				Log.e(TAG, "mLocationProvider == null");
@@ -373,12 +415,7 @@ public class CompassActivity extends Activity implements SensorEventListener {
                     Log.i("chinn", "onSensorChanged: event.values[0] =  " + event.values[0]);
                     /*konka-Compass debug-chinn-2-151105-start*/
                     degree = ((int) event.values[0]) % 360;
-		/*
-				img_compass_dial.setRotation(-event.values[0]);
-				cur_degree.setText(String.valueOf((int) event.values[0])
-						+ getString(R.string.character_degree));
-				setDirection((int) event.values[0]);
-		*/
+
                     img_compass_dial.setRotation(-degree);
                     cur_degree.setText(degree
                             + getString(R.string.character_degree));
@@ -393,17 +430,24 @@ public class CompassActivity extends Activity implements SensorEventListener {
                 break;
             case Sensor.TYPE_ACCELEROMETER:
                 mGData = event.values;
+                gravity = event.values;
+
+                handler.sendEmptyMessage(0);
                 if (need_calibration) {
                     judgeCalibration();
                 }
                 break;
             case Sensor.TYPE_MAGNETIC_FIELD:
-//                mAccuracy = event.accuracy;
-//                if ((mAccuracy == SensorManager.SENSOR_STATUS_UNRELIABLE)
-//                        || (oAccuracy == SensorManager.SENSOR_STATUS_UNRELIABLE)) {
-//                    need_calibration = true;
-//                    calibrationUIchange(need_calibration);
-//                }
+                mAccuracy = event.accuracy;
+
+                geomagnetic = event.values;
+                handler.sendEmptyMessage(0);
+
+                if ((mAccuracy == SensorManager.SENSOR_STATUS_UNRELIABLE)
+                        || (oAccuracy == SensorManager.SENSOR_STATUS_UNRELIABLE)) {
+                    need_calibration = true;
+                    calibrationUIchange(need_calibration);
+                }
                 break;
             default:
                 break;
@@ -412,7 +456,7 @@ public class CompassActivity extends Activity implements SensorEventListener {
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // TODO Auto-generated method stub
+
     }
 
 
@@ -455,13 +499,6 @@ public class CompassActivity extends Activity implements SensorEventListener {
             //calibrationComplete();
             calibrationUIchange(need_calibration);
 
-
-//			String a="x="+xPassTimes+"y="+yPassTimes+"z="+zPassTimes+"zN="+zNegativePassTimes;
-//			Toast toast = Toast.makeText(this,
-//					a, Toast.LENGTH_SHORT);	
-//			toast.show();			
-
-
             xPassTimes = 0;
             yPassTimes = 0;
             zPassTimes = 0;
@@ -472,27 +509,6 @@ public class CompassActivity extends Activity implements SensorEventListener {
     }
 
 
-//	/**
-//	 * void calibrationComplete()
-//	 * 校准完成后进入指南针界面需切换UI视图，并判断是否开启了位置服务。
-//	 */
-//	private void calibrationComplete() {
-//		
-//		img_compass_dial.setImageResource(R.drawable.img_compass_dial);
-//		img_compass_pointer.setVisibility(View.VISIBLE);
-//		img_compass_bg.getBackground().setAlpha(255);
-//		cur_degree.setVisibility(View.VISIBLE);
-//		cur_direction.setVisibility(View.VISIBLE);
-//		cali_text.setVisibility(View.INVISIBLE);
-////		Log.i("ACCELEROMETER", "calibrationComplete");
-//		//如未开启位置服务，则提醒用户开启。
-//		if (isLocationServiceDisable()) {
-////			Log.i("ACCELEROMETER", "displayAlertDialogForOpenLocationService");
-//			displayAlertDialogForOpenLocationService();
-//		}	
-//		
-//	}
-
     LocationListener mLocationListener = new LocationListener() {
 
         // Provider的状态在可用、暂时不可用和无服务三个状态直接切换时触发此函数
@@ -500,13 +516,7 @@ public class CompassActivity extends Activity implements SensorEventListener {
         public void onStatusChanged(String provider, int status, Bundle extras) {
             if (status != LocationProvider.OUT_OF_SERVICE) {
                 if (ActivityCompat.checkSelfPermission(CompassActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CompassActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
+
                     return;
                 }
                 updateLocation(mLocationManager.getLastKnownLocation(mLocationProvider));
